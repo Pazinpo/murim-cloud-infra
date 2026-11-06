@@ -86,7 +86,7 @@ Prometheus가 pull 방식으로 각 exporter의 메트릭을 주기적으로 수
 - **Grafana**: Node Exporter Full(Dashboard ID 1860) 활용 및 PromQL 직접 작성 패널로 컨테이너 메트릭 시각화
 
 컨테이너 간 통신은 Docker Compose 서비스명을 사용하므로, Prometheus의 scrape 타깃과
-Grafana의 데이터소스 모두 \`localhost\`가 아닌 서비스명(\`prometheus:9090\`, \`node-exporter:9100\`, \`cadvisor:8080\`)으로 지정했습니다.
+Grafana의 데이터소스 모두 `localhost`가 아닌 서비스명(`prometheus:9090`, `node-exporter:9100`, `cadvisor:8080`)으로 지정했습니다.
 
 **Prometheus 타깃 수집 상태 (prometheus / node-exporter / cAdvisor 모두 UP)**
 
@@ -101,8 +101,8 @@ Grafana의 데이터소스 모두 \`localhost\`가 아닌 서비스명(\`prometh
 모니터링이 "설치"에 그치지 않고 실제 부하 상황을 관측하는지 검증하기 위해,
 부하 발생 도구로 시스템·웹 트래픽 부하를 주고 메트릭이 실시간으로 반응하는지 확인했습니다.
 
-- **CPU 부하**: \`stress-ng --cpu 4\` 로 호스트 CPU에 부하를 주고, node-exporter 메트릭에서 CPU 사용률이 즉시 상승하는 것을 관측
-- **웹 트래픽 부하**: \`ab\`(ApacheBench)로 Nginx(8085)에 초당 약 9,000 요청(동시 200 × 4 프로세스)을 발생시켜 컨테이너 네트워크 반응 관측
+- **CPU 부하**: `stress-ng --cpu 4` 로 호스트 CPU에 부하를 주고, node-exporter 메트릭에서 CPU 사용률이 즉시 상승하는 것을 관측
+- **웹 트래픽 부하**: `ab`(ApacheBench)로 Nginx(8085)에 초당 약 9,000 요청(동시 200 × 4 프로세스)을 발생시켜 컨테이너 네트워크 반응 관측
 
 **호스트 CPU 반응 — 부하 발생 구간에서 CPU 사용률이 80% 가까이 상승**
 
@@ -117,15 +117,24 @@ Grafana의 데이터소스 모두 \`localhost\`가 아닌 서비스명(\`prometh
 
 ## Security
 
-- 민감정보(DB·Grafana 비밀번호)를 \`.env\`로 분리하고 \`.gitignore\`로 형상관리에서 제외하여, 공개 저장소에서도 노출되지 않도록 처리
-- DB(3306) 및 모니터링 포트(3000/9090/8081)는 본인 IP(\`/32\`)로만 접근 제한 — 최소 권한 원칙 적용
-- SSH(22)는 CI/CD 자동 배포를 위해 개방하되, 비밀번호 인증을 사용하지 않고 키 기반 인증만 허용
+- 비밀번호는 코드에 두지 않고 `.env`와 Terraform 변수로 분리
+  - `docker-compose.yml`은 `${변수}` 참조만 사용하고, `.env`는 `.gitignore`로 제외 (형식: `.env.example`)
+  - Terraform `user_data`는 `terraform.tfvars`(gitignore 대상)의 값을 `sensitive` 변수로 받아 서버에 `.env`를 생성 (형식: `terraform/terraform.tfvars.example`)
+  - GitHub Actions는 접속 정보(`HOST`·`USERNAME`·`SSH_KEY`)를 GitHub Secrets로 받고, `.env`를 직접 만들지 않음
+- DB(3306) 및 모니터링 포트(3000/9090/8081)는 변수로 받은 본인 IP(`/32`)로만 접근 제한 — 최소 권한 원칙 적용
+- SSH(22)는 CI/CD 자동 배포를 위해 개방하되(`ssh_allowed_cidr`), 비밀번호 인증을 사용하지 않고 키 기반 인증만 허용
+
+**알려진 한계와 개선 방향**
+
+- 초기 커밋(4~6월)에는 학습용 비밀번호가 compose·Terraform·CI 스크립트에 평문으로 들어 있었고, 이후 위 방식으로 분리했습니다. 이전 커밋 기록에는 그 값이 남아 있습니다.
+- `user_data`에 넣은 값은 Terraform state와 인스턴스 메타데이터에서 확인할 수 있어, 운영 환경에서는 SSM Parameter Store나 Secrets Manager 사용이 적합합니다.
+- SSH 22번 전체 개방 대신 셀프호스티드 러너나 SSM Session Manager 기반 배포로 닫는 것이 다음 개선 과제입니다.
 
 ## Deployment
 
-1. **인프라 프로비저닝** — \`terraform apply\`로 VPC, Subnet, IGW, Route Table, Security Group, EC2 생성
-2. **서버 초기화** — EC2 \`user_data\`가 Docker 설치, 2GB 스왑 설정, 프로젝트 clone, \`.env\` 생성, \`docker compose up -d\`까지 자동 수행
-3. **지속 배포** — \`main\` 브랜치 push 시 GitHub Actions가 SSH로 EC2에 접속하여 \`git pull\` 후 \`docker compose up -d\`로 재배포
+1. **인프라 프로비저닝** — `terraform.tfvars`를 준비(`terraform.tfvars.example` 참고)한 뒤 `terraform apply`로 VPC, Subnet, IGW, Route Table, Security Group, EC2 생성
+2. **서버 초기화** — EC2 `user_data`가 Docker 설치, 2GB 스왑 설정, 프로젝트 clone, `.env` 생성(Terraform 변수 값 사용), `docker compose up -d`까지 자동 수행
+3. **지속 배포** — `main` 브랜치 push 시 GitHub Actions가 SSH로 EC2에 접속하여 `git pull` 후 `docker compose up -d`로 재배포 (서버에 `.env`가 없으면 배포를 중단)
 
 **GitHub Actions를 통한 자동 배포 성공**
 
@@ -150,7 +159,7 @@ Grafana의 데이터소스 모두 \`localhost\`가 아닌 서비스명(\`prometh
 프로젝트를 진행하며 마주친 운영 이슈와 해결 과정을 정리했습니다.
 
 ### 1. Terraform / AWS — EC2 재생성으로 인한 상태 변경
-- **증상:** \`terraform apply\` 시 EC2가 파괴 후 재생성되어 공인 IP와 서버 상태가 변경됨
+- **증상:** `terraform apply` 시 EC2가 파괴 후 재생성되어 공인 IP와 서버 상태가 변경됨
 - **원인:** Immutable Infrastructure 특성상 일부 리소스 변경이 인스턴스 교체를 유발
 - **해결:** 변경된 공인 IP를 GitHub Secrets(HOST)와 DB 접속 도구에 최신화하여 배포 파이프라인 정상화
 
@@ -161,7 +170,7 @@ Grafana의 데이터소스 모두 \`localhost\`가 아닌 서비스명(\`prometh
 
 ### 3. Docker Network — 백엔드 DB 연결 실패
 - **증상:** 백엔드에서 DB 연결 실패 (Connection Refused)
-- **원인:** 컨테이너 내부에서 \`localhost\`로 DB에 접근 시도
+- **원인:** 컨테이너 내부에서 `localhost`로 DB에 접근 시도
 - **해결:** 컨테이너 간 통신은 서비스명을 호스트로 사용해야 함을 확인하고, DB_HOST를 docker compose 서비스명(my-db)과 일치시킴
 
 ### 4. Data Persistence — 서버 재구축 후 데이터 소멸
@@ -170,9 +179,9 @@ Grafana의 데이터소스 모두 \`localhost\`가 아닌 서비스명(\`prometh
 - **해결:** 데이터 영속성을 위해 운영 환경에서는 RDS 또는 EBS 분리 전략이 필요함을 정리
 
 ### 5. EC2 — 디스크 용량 부족으로 컨테이너 기동 실패
-- **증상:** EC2 배포 시 \`no space left on device\`로 일부 이미지 추출 실패
+- **증상:** EC2 배포 시 `no space left on device`로 일부 이미지 추출 실패
 - **원인:** t3.micro 기본 EBS(8GB)로는 모니터링 포함 7개 컨테이너 이미지 용량이 부족
-- **해결:** Terraform \`root_block_device\`로 EBS를 30GB(프리티어 한도)로 확장하고, \`growpart\`·\`resize2fs\`로 OS 파일시스템까지 확장하여 해결
+- **해결:** Terraform `root_block_device`로 EBS를 30GB(프리티어 한도)로 확장하고, `growpart`·`resize2fs`로 OS 파일시스템까지 확장하여 해결
 
 ### 6. EC2 — 메모리 부족(OOM) 대응
 - **증상:** t3.micro(RAM 1GB)에서 컨테이너 7개 동시 기동 시 메모리 부족 우려
@@ -180,7 +189,7 @@ Grafana의 데이터소스 모두 \`localhost\`가 아닌 서비스명(\`prometh
 - **해결:** user_data에 2GB 스왑 메모리 설정을 코드화하여 인스턴스 생성 시 자동 적용. Grafana 대시보드에서 SWAP 사용률이 실제 잡히는 것으로 검증 (인프라 자원은 AWS, 스왑은 OS 영역임을 구분하여 적용)
 
 ### 7. CI/CD — GitHub Actions SSH 접속 timeout
-- **증상:** Actions 배포 시 \`dial tcp :22: i/o timeout\` 발생
+- **증상:** Actions 배포 시 `dial tcp :22: i/o timeout` 발생
 - **원인:** SSH(22) ingress를 본인 IP로만 제한하여 GitHub Actions 러너의 IP가 차단됨
 - **해결:** SSH 22번을 개방하되 키 기반 인증으로 보안을 확보. DB·모니터링 포트(3306/3000/9090/8081)는 본인 IP 제한을 유지하여 최소 권한 원칙을 함께 적용
 
