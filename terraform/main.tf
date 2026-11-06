@@ -53,12 +53,13 @@ resource "aws_security_group" "murim_sg" {
   name   = "murim-sg"
   vpc_id = aws_vpc.murim_vpc.id
 
-  # SSH (22) - 본인 IP만
+  # SSH (22) - GitHub Actions 러너 IP가 고정이 아니라 기본값은 전체 개방(키 인증만 허용)
+  # 좁히려면 ssh_allowed_cidr 를 바꾸거나, 셀프호스티드 러너/SSM 배포로 전환
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["183.102.82.167/32"]
+    cidr_blocks = [var.ssh_allowed_cidr]
   }
 
   # HTTP (80) - 웹 서비스 공개
@@ -82,7 +83,7 @@ resource "aws_security_group" "murim_sg" {
     from_port   = 3306
     to_port     = 3306
     protocol    = "tcp"
-    cidr_blocks = ["183.102.82.167/32"]
+    cidr_blocks = [var.my_ip_cidr]
   }
 
   # Grafana (3000) - 본인 IP만
@@ -90,7 +91,7 @@ resource "aws_security_group" "murim_sg" {
     from_port   = 3000
     to_port     = 3000
     protocol    = "tcp"
-    cidr_blocks = ["183.102.82.167/32"]
+    cidr_blocks = [var.my_ip_cidr]
   }
 
   # Prometheus (9090) - 본인 IP만
@@ -98,7 +99,7 @@ resource "aws_security_group" "murim_sg" {
     from_port   = 9090
     to_port     = 9090
     protocol    = "tcp"
-    cidr_blocks = ["183.102.82.167/32"]
+    cidr_blocks = [var.my_ip_cidr]
   }
 
   # cAdvisor (8081) - 본인 IP만
@@ -106,7 +107,7 @@ resource "aws_security_group" "murim_sg" {
     from_port   = 8081
     to_port     = 8081
     protocol    = "tcp"
-    cidr_blocks = ["183.102.82.167/32"]
+    cidr_blocks = [var.my_ip_cidr]
   }
 
   egress {
@@ -150,15 +151,15 @@ mkswap /swapfile
 swapon /swapfile
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
-# 프로젝트 클론 & .env 생성 & 기동
+# 프로젝트 클론 & .env 생성(값은 Terraform 변수에서 주입) & 기동
 cd /home/ubuntu
 git clone https://github.com/Pazinpo/murim-cloud-practice-project.git
 cd murim-cloud-practice-project
 cat > .env <<'ENVEOF'
-MYSQL_ROOT_PASSWORD=1234
-DB_PASSWORD=1234
-GRAFANA_ADMIN_USER=admin
-GRAFANA_ADMIN_PASSWORD=admin1234
+MYSQL_ROOT_PASSWORD=${var.mysql_root_password}
+DB_PASSWORD=${var.db_password}
+GRAFANA_ADMIN_USER=${var.grafana_admin_user}
+GRAFANA_ADMIN_PASSWORD=${var.grafana_admin_password}
 ENVEOF
 docker compose up -d
 USERDATA

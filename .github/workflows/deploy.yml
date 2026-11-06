@@ -21,14 +21,11 @@ jobs:
             fi
             cd ~/murim-cloud-practice-project
             git pull origin main
-            # .env가 없으면 생성 (최초 1회)
+            # .env 는 저장소에 없습니다(.gitignore). 서버 최초 구성 시 Terraform user_data 가
+            # 변수 값으로 생성하며, 형식은 .env.example 을 참고하세요.
             if [ ! -f ".env" ]; then
-              cat > .env <<'ENVEOF'
-            MYSQL_ROOT_PASSWORD=1234
-            DB_PASSWORD=1234
-            GRAFANA_ADMIN_USER=admin
-            GRAFANA_ADMIN_PASSWORD=admin1234
-            ENVEOF
+              echo "ERROR: .env 파일이 없습니다. .env.example 을 참고해 서버에 생성하세요."
+              exit 1
             fi
             docker compose pull
             docker compose up -d

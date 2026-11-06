@@ -1,0 +1,11 @@
+# 이 파일을 terraform.tfvars 로 복사해 값을 채워 사용하세요.
+# terraform.tfvars 는 .gitignore 로 커밋에서 제외됩니다.
+
+my_ip_cidr = "203.0.113.10/32" # 본인 공인 IP/32
+
+# ssh_allowed_cidr = "0.0.0.0/0" # 기본값. 좁히려면 허용할 대역을 지정
+
+mysql_root_password    = "change-me"
+db_password            = "change-me"
+grafana_admin_user     = "admin"
+grafana_admin_password = "change-me"

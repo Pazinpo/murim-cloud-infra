@@ -6,7 +6,8 @@ app = FastAPI()
 
 # 도커 컴포즈 설계도에 적힌 이름들
 DB_HOST = os.environ.get('DB_HOST', 'my-db')
-DB_PASS = os.environ.get('DB_PASSWORD', '1234')
+# 비밀번호는 기본값 없이 환경변수(.env -> docker-compose)로만 받는다
+DB_PASS = os.environ['DB_PASSWORD']
 
 @app.get("/api/status")
 def get_murim_status():
